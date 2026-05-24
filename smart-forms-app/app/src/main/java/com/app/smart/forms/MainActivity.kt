@@ -5,7 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import com.app.smart.forms.ui.LoginScreen
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import com.app.smart.forms.ui.AppNavigation
 import com.app.smart.forms.ui.theme.SmartFormsTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,8 +16,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SmartFormsTheme {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    LoginScreen()
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        AppNavigation()
+                    }
                 }
             }
         }
