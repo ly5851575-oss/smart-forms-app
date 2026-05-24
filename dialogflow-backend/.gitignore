@@ -1,0 +1,6 @@
+node_modules
+.env
+*.log
+service-account.json
+*service*.json
+flutter-ai-playground-*.json
