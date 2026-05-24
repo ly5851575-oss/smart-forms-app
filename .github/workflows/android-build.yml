@@ -8,7 +8,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -45,15 +45,15 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug --stacktrace
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease --stacktrace
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk smart-forms-debug.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk smart-forms-release.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: smart-forms-debug-apk
-          path: smart-forms-debug.apk
+          name: smart-forms-release-apk
+          path: smart-forms-release.apk
           if-no-files-found: error
