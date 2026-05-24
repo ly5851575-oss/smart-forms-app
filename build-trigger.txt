@@ -1,0 +1,1 @@
+APK build trigger after fixing workflow to use Gradle without EAS token.
