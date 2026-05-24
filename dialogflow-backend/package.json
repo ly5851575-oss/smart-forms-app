@@ -1,0 +1,1 @@
+{"name":"dialogflow-backend","version":"1.0.0","main":"index.js","scripts":{"start":"node index.js"},"dependencies":{"@google-cloud/dialogflow":"latest","cors":"latest","express":"latest","uuid":"latest"},"engines":{"node":">=20"}}
