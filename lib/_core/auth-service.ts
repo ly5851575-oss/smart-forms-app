@@ -9,17 +9,14 @@ import {
   signInWithCredential,
 } from 'firebase/auth';
 import {
-  collection,
   doc,
   setDoc,
   getDoc,
   updateDoc,
   Timestamp,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
-import { getAnalytics, logEvent } from 'firebase/analytics';
+import { auth, db, logAnalyticsEvent } from './firebase';
 
-// User data interface
 export interface UserData {
   uid: string;
   email: string;
@@ -35,11 +32,10 @@ export interface UserData {
   lastLoginAt: Timestamp;
 }
 
-// Create user document in Firestore
 export const createUserDocument = async (user: User, provider: 'google' | 'email'): Promise<UserData> => {
   const now = Timestamp.now();
   const trialEndsAt = new Date();
-  trialEndsAt.setDate(trialEndsAt.getDate() + 3); // 3 days trial
+  trialEndsAt.setDate(trialEndsAt.getDate() + 3);
 
   const userData: UserData = {
     uid: user.uid,
@@ -56,16 +52,10 @@ export const createUserDocument = async (user: User, provider: 'google' | 'email
     lastLoginAt: now,
   };
 
-  try {
-    await setDoc(doc(db, 'users', user.uid), userData);
-    return userData;
-  } catch (error) {
-    console.error('Error creating user document:', error);
-    throw error;
-  }
+  await setDoc(doc(db, 'users', user.uid), userData);
+  return userData;
 };
 
-// Get user document from Firestore
 export const getUserDocument = async (uid: string): Promise<UserData | null> => {
   try {
     const docRef = doc(db, 'users', uid);
@@ -77,7 +67,6 @@ export const getUserDocument = async (uid: string): Promise<UserData | null> => 
   }
 };
 
-// Update last login time
 export const updateLastLogin = async (uid: string) => {
   try {
     const docRef = doc(db, 'users', uid);
@@ -89,159 +78,83 @@ export const updateLastLogin = async (uid: string) => {
   }
 };
 
-// Register with email and password
 export const registerWithEmail = async (
   email: string,
   password: string,
   displayName: string
 ): Promise<User> => {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const user = userCredential.user;
 
-    // Update display name
-    // await updateProfile(user, { displayName });
+  await createUserDocument(user, 'email');
+  await sendEmailVerification(user);
 
-    // Create user document
-    await createUserDocument(user, 'email');
+  await logAnalyticsEvent('signup_email', {
+    provider: 'email',
+    timestamp: new Date().toISOString(),
+  });
 
-    // Send verification email
-    await sendEmailVerification(user);
-
-    // Log analytics event
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'signup_email', {
-        email: email,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return user;
-  } catch (error) {
-    console.error('Error registering with email:', error);
-    throw error;
-  }
+  return user;
 };
 
-// Sign in with email and password
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  const user = userCredential.user;
 
-    // Update last login
-    await updateLastLogin(user.uid);
+  await updateLastLogin(user.uid);
 
-    // Log analytics event
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'login_email', {
-        email: email,
-        timestamp: new Date().toISOString(),
-      });
-    }
+  await logAnalyticsEvent('login_email', {
+    provider: 'email',
+    timestamp: new Date().toISOString(),
+  });
 
-    return user;
-  } catch (error) {
-    console.error('Error signing in with email:', error);
-    throw error;
-  }
+  return user;
 };
 
-// Sign in with Google
 export const signInWithGoogle = async (idToken: string): Promise<User> => {
-  try {
-    const credential = GoogleAuthProvider.credential(idToken);
-    const userCredential = await signInWithCredential(auth, credential);
-    const user = userCredential.user;
+  const credential = GoogleAuthProvider.credential(idToken);
+  const userCredential = await signInWithCredential(auth, credential);
+  const user = userCredential.user;
 
-    // Check if user exists in Firestore
-    const existingUser = await getUserDocument(user.uid);
+  const existingUser = await getUserDocument(user.uid);
 
-    if (!existingUser) {
-      // Create new user document
-      await createUserDocument(user, 'google');
-    } else {
-      // Update last login
-      await updateLastLogin(user.uid);
-    }
-
-    // Log analytics event
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'login_google', {
-        email: user.email,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return user;
-  } catch (error) {
-    console.error('Error signing in with Google:', error);
-    throw error;
+  if (!existingUser) {
+    await createUserDocument(user, 'google');
+  } else {
+    await updateLastLogin(user.uid);
   }
+
+  await logAnalyticsEvent('login_google', {
+    provider: 'google',
+    timestamp: new Date().toISOString(),
+  });
+
+  return user;
 };
 
-// Send password reset email
 export const resetPassword = async (email: string): Promise<void> => {
-  try {
-    await sendPasswordResetEmail(auth, email);
+  await sendPasswordResetEmail(auth, email);
 
-    // Log analytics event
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'password_reset_sent', {
-        email: email,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } catch (error) {
-    console.error('Error sending password reset email:', error);
-    throw error;
-  }
+  await logAnalyticsEvent('password_reset_sent', {
+    provider: 'email',
+    timestamp: new Date().toISOString(),
+  });
 };
 
-// Send email verification
 export const sendVerificationEmail = async (user: User): Promise<void> => {
-  try {
-    await sendEmailVerification(user);
+  await sendEmailVerification(user);
 
-    // Log analytics event
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'email_verification_sent', {
-        email: user.email,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-    throw error;
-  }
+  await logAnalyticsEvent('email_verification_sent', {
+    timestamp: new Date().toISOString(),
+  });
 };
 
-// Log email verified event
-export const logEmailVerified = async (email: string): Promise<void> => {
-  try {
-    const analytics = await getAnalytics();
-    if (analytics) {
-      logEvent(analytics, 'email_verified', {
-        email: email,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } catch (error) {
-    console.error('Error logging email verified:', error);
-  }
+export const logEmailVerified = async (_email: string): Promise<void> => {
+  await logAnalyticsEvent('email_verified', {
+    timestamp: new Date().toISOString(),
+  });
 };
 
-// Sign out
 export const logout = async (): Promise<void> => {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    console.error('Error signing out:', error);
-    throw error;
-  }
+  await signOut(auth);
 };
