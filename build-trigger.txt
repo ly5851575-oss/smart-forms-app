@@ -1,1 +1,1 @@
-APK build trigger after fixing workflow to use Gradle without EAS token.
+Trigger stable APK rebuild after native startup crash fixes.
