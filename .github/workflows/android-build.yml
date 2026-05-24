@@ -8,6 +8,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -17,6 +18,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -29,17 +39,21 @@ jobs:
       - name: Run TypeScript check
         run: pnpm check
 
-      - name: Setup Expo and EAS
-        run: pnpm dlx eas-cli --version
+      - name: Generate native Android project
+        run: pnpm exec expo prebuild --platform android --clean --non-interactive
 
-      - name: Build Android APK with EAS local
-        run: pnpm dlx eas-cli build --platform android --profile preview --local --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build debug APK
+        run: cd android && ./gradlew assembleDebug --stacktrace
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk smart-forms-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: smart-forms-apk
-          path: "*.apk"
-          if-no-files-found: warn
+          name: smart-forms-debug-apk
+          path: smart-forms-debug.apk
+          if-no-files-found: error
