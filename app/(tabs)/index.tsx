@@ -7,6 +7,42 @@ import { useColors } from '@/hooks/use-colors';
 import { logout } from '@/lib/_core/auth-service';
 import { Timestamp } from 'firebase/firestore';
 
+type FirebaseDateLike = Timestamp | Date | string | number | null | undefined | { toDate?: () => Date };
+
+function toSafeDate(value: FirebaseDateLike): Date | null {
+  try {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+
+    if (value instanceof Timestamp) {
+      return value.toDate();
+    }
+
+    if (typeof value === 'object' && typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
+    }
+
+    if (typeof value === 'string' || typeof value === 'number') {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function formatArabicDate(value: FirebaseDateLike): string {
+  const date = toSafeDate(value);
+  if (!date) return 'غير متوفر';
+  return date.toLocaleDateString('ar-SA');
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const colors = useColors();
@@ -16,7 +52,7 @@ export default function HomeScreen() {
     if (!loading && !user) {
       router.replace('/login');
     }
-  }, [user, loading]);
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
     try {
@@ -28,10 +64,10 @@ export default function HomeScreen() {
   };
 
   const getTrialDaysRemaining = (): number => {
-    if (!userData?.trialEndsAt) return 0;
-    const trialEnd = userData.trialEndsAt as Timestamp;
+    const endDate = toSafeDate(userData?.trialEndsAt as FirebaseDateLike);
+    if (!endDate) return 0;
+
     const now = new Date();
-    const endDate = trialEnd.toDate();
     const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(0, daysRemaining);
   };
@@ -52,21 +88,28 @@ export default function HomeScreen() {
     );
   }
 
+  const subscriptionLabel =
+    userData.subscriptionStatus === 'trial'
+      ? 'تجربة مجانية'
+      : userData.subscriptionStatus === 'active'
+        ? 'مشترك'
+        : userData.subscriptionStatus === 'expired'
+          ? 'منتهية'
+          : 'غير معروف';
+
   return (
     <ScreenContainer className="bg-background p-6">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="flex-1 gap-6">
-          {/* Welcome Header */}
           <View className="items-center gap-2">
             <Text className="text-4xl font-bold text-foreground">مرحباً</Text>
-            <Text className="text-lg text-muted">{userData.displayName || userData.email}</Text>
+            <Text className="text-lg text-muted">{userData.displayName || userData.email || user.email}</Text>
           </View>
 
-          {/* User Info Card */}
           <View className="w-full bg-surface rounded-2xl p-6 border border-border gap-4">
             <View className="gap-2">
               <Text className="text-sm text-muted">البريد الإلكتروني</Text>
-              <Text className="text-base font-semibold text-foreground">{userData.email}</Text>
+              <Text className="text-base font-semibold text-foreground">{userData.email || user.email}</Text>
             </View>
 
             <View className="h-px bg-border" />
@@ -95,13 +138,10 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Subscription Info Card */}
           <View className="w-full bg-primary/10 rounded-2xl p-6 border border-primary gap-4">
             <View className="gap-2">
               <Text className="text-sm text-muted">حالة الاشتراك</Text>
-              <Text className="text-2xl font-bold text-primary">
-                {userData.subscriptionStatus === 'trial' ? 'تجربة مجانية' : 'مشترك'}
-              </Text>
+              <Text className="text-2xl font-bold text-primary">{subscriptionLabel}</Text>
             </View>
 
             {userData.subscriptionStatus === 'trial' && (
@@ -113,25 +153,21 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {userData.trialEndsAt && (
-              <View className="gap-2">
-                <Text className="text-sm text-muted">تنتهي في</Text>
-                <Text className="text-base font-semibold text-foreground">
-                  {userData.trialEndsAt.toDate().toLocaleDateString('ar-SA')}
-                </Text>
-              </View>
-            )}
+            <View className="gap-2">
+              <Text className="text-sm text-muted">تنتهي في</Text>
+              <Text className="text-base font-semibold text-foreground">
+                {formatArabicDate(userData.trialEndsAt as FirebaseDateLike)}
+              </Text>
+            </View>
           </View>
 
-          {/* Account Created Date */}
           <View className="w-full bg-surface rounded-2xl p-6 border border-border gap-2">
             <Text className="text-sm text-muted">تاريخ إنشاء الحساب</Text>
             <Text className="text-base font-semibold text-foreground">
-              {userData.createdAt.toDate().toLocaleDateString('ar-SA')}
+              {formatArabicDate(userData.createdAt as FirebaseDateLike)}
             </Text>
           </View>
 
-          {/* Logout Button */}
           <Pressable
             onPress={handleLogout}
             style={({ pressed }) => [{
@@ -151,4 +187,3 @@ export default function HomeScreen() {
     </ScreenContainer>
   );
 }
-
